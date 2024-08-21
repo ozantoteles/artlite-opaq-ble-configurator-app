@@ -1,0 +1,7 @@
+# Ignore all .pyc files
+*.pyc
+
+# Ignore __pycache__ directories
+__pycache__/
+
+device_config.json
