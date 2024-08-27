@@ -32,8 +32,8 @@ for target in  192.168.1.110; do
   echo "Extracting on $target..."
   ssh -o ForwardX11=no root@$target "tar -xzf /usr/local/$TARBALL_NAME -C /usr/local/ && rm /usr/local/$TARBALL_NAME"
   echo "Done with $target."
-  #ssh -o ForwardX11=no root@$target "systemctl restart artlite-opaq-ble-configurator-app.service"
-  #echo 'Systemd service restarted.'
+  ssh -o ForwardX11=no root@$target "systemctl restart artlite-opaq-ble-configurator-app.service"
+  echo 'Systemd service restarted.'
 
 done
  

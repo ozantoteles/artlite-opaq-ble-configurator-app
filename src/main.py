@@ -160,7 +160,7 @@ class SensorService(bluetooth_gatt.Service):
         self.add_characteristic(SensorCharacteristic(bus, 1, self,CHARAC_UUID_2, restart=True, charac_name = "RestartOpaqAppCharacteristic", service_name = "artlite-opaq-app"))
         
         print("Adding RestartBleOpsCharacteristic to the service")
-        self.add_characteristic(SensorCharacteristic(bus, 2, self,CHARAC_UUID_3, restart=True, charac_name = "RestartBleOpsCharacteristic", service_name = "ble-restart"))
+        self.add_characteristic(SensorCharacteristic(bus, 2, self,CHARAC_UUID_3, restart=True, charac_name = "RestartBleOpsCharacteristic", service_name = "artlite-opaq-ble-configurator-app"))
         
         print("Adding RestartCairAppCharacteristic to the service")
         self.add_characteristic(SensorCharacteristic(bus, 3, self,CHARAC_UUID_4, restart=True, charac_name = "RestartCairAppCharacteristic", service_name = "cair-app"))
@@ -343,49 +343,37 @@ def global_exception_handler(exc_type, exc_value, exc_traceback):
     
 sys.excepthook = global_exception_handler
 
-print("************ 1 ************")
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-print("************ 2 ************")
 bus = dbus.SystemBus()
-print("************ 3 ************")
 # we're assuming the adapter supports advertising
 adapter_path = bluetooth_constants.BLUEZ_NAMESPACE + bluetooth_constants.ADAPTER_NAME
-print("************ 4 ************")
 adv_mgr_interface = dbus.Interface(bus.get_object(bluetooth_constants.BLUEZ_SERVICE_NAME,adapter_path), bluetooth_constants.ADVERTISING_MANAGER_INTERFACE)
-print("************ 5 ************")
 bus.add_signal_receiver(properties_changed,
         dbus_interface = bluetooth_constants.DBUS_PROPERTIES,
         signal_name = "PropertiesChanged",
         path_keyword = "path")
-print("************ 6 ************")
 bus.add_signal_receiver(interfaces_added,
         dbus_interface = bluetooth_constants.DBUS_OM_IFACE,
         signal_name = "InterfacesAdded")
-print("************ 7 ************")
 
 # we're only registering one advertisement object so index (arg2) is hard coded as 0
 adv_mgr_interface = dbus.Interface(bus.get_object(bluetooth_constants.BLUEZ_SERVICE_NAME,adapter_path), bluetooth_constants.ADVERTISING_MANAGER_INTERFACE)
-print("************ 8 ************")
 adv = Advertisement(bus, 0, 'peripheral')
-print("************ 9 ************")
 start_advertising()
-print("************ 10 ************")
+
 mainloop = GLib.MainLoop()
 # Schedule the stop function to be called after 5 seconds
 #GLib.timeout_add_seconds(5, stop_mainloop)
-print("************ 11 ************")
 app = Application(bus)
-print("************ 12 ************")
 print('Registering GATT application...')
 
 service_manager = dbus.Interface(
         bus.get_object(bluetooth_constants.BLUEZ_SERVICE_NAME, adapter_path),
         bluetooth_constants.GATT_MANAGER_INTERFACE)
-print("************ 13 ************")
+
 service_manager.RegisterApplication(app.get_path(), {},
                                 reply_handler=register_app_cb,
                                 error_handler=register_app_error_cb)
-print("************ 14 ************")  
                            
 try:
     print("Running the main loop.")
