@@ -13,7 +13,7 @@ PermissionsStartOnly=true
 StandardError=journal
 StandardOutput=journal
 WorkingDirectory=/usr/local/artlite-opaq-ble-configurator-app
-ExecStart=/usr/bin/python3.10 /usr/local/artlite-opaq-ble-configurator-app/src/main.py
+ExecStart=/usr/bin/python /usr/local/artlite-opaq-ble-configurator-app/src/main.py
 
 [Install]
 WantedBy=multi-user.target
