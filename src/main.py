@@ -19,6 +19,8 @@ import subprocess
 
 #sys.path.insert(0, '.')
 DEVICE_CONFIG_PATH = "/usr/local/artlite-opaq-app/config/device_config.json"
+DEVICE_MAPPING_PATH = "/usr/local/artlite-opaq-app/config/device_mapping.json"
+
 command = """
 cd /usr/local/bin/ 
 ./artlite_bt.sh off
@@ -44,6 +46,7 @@ adv_mgr_interface = None
 connected = 0
 
 SERVICE_UUID = UNIQUE_ID + '-2873-4ee1-bc21-f7dd0c72de04'
+CHARAC_UUID_0 = '3d736f3c-9108-42d1-ab03-c6523eb7fcb5'
 CHARAC_UUID_1 = '376eb4c9-a16d-4a50-aaf2-8052884a3f99'
 CHARAC_UUID_2 = '5f5f4b18-fe65-4916-b6c7-b1574ee591cb'
 CHARAC_UUID_3 = '4482c5c3-9932-4aa3-b74a-67e1720abd91'
@@ -154,19 +157,22 @@ class SensorService(bluetooth_gatt.Service):
         print("Initialising SensorService object")
         bluetooth_gatt.Service.__init__(self, bus, path_base, index, SERVICE_UUID, True)
         print("Adding ChangeConfigurationCharacteristic to the service")
-        self.add_characteristic(SensorCharacteristic(bus, 0, self,CHARAC_UUID_1, restart=False, charac_name = "ChangeConfigurationCharacteristic", service_name = None))
+        self.add_characteristic(SensorCharacteristic(bus, 0, self, CHARAC_UUID_0, restart=False, charac_name = "ChangeConfigurationCharacteristic", service_name = None))
 
+        print("Adding ChangeDeviceMappingCharacteristic to the service")
+        self.add_characteristic(SensorCharacteristic(bus, 1, self, CHARAC_UUID_1, restart=False, charac_name = "ChangeDeviceMappingCharacteristic", service_name = None))
+        
         print("Adding RestartOpaqAppCharacteristic to the service")
-        self.add_characteristic(SensorCharacteristic(bus, 1, self,CHARAC_UUID_2, restart=True, charac_name = "RestartOpaqAppCharacteristic", service_name = "artlite-opaq-app"))
+        self.add_characteristic(SensorCharacteristic(bus, 2, self, CHARAC_UUID_2, restart=True, charac_name = "RestartOpaqAppCharacteristic", service_name = "artlite-opaq-app"))
         
         print("Adding RestartBleOpsCharacteristic to the service")
-        self.add_characteristic(SensorCharacteristic(bus, 2, self,CHARAC_UUID_3, restart=True, charac_name = "RestartBleOpsCharacteristic", service_name = "artlite-opaq-ble-configurator-app"))
+        self.add_characteristic(SensorCharacteristic(bus, 3, self, CHARAC_UUID_3, restart=True, charac_name = "RestartBleOpsCharacteristic", service_name = "artlite-opaq-ble-configurator-app"))
         
         print("Adding RestartCairAppCharacteristic to the service")
-        self.add_characteristic(SensorCharacteristic(bus, 3, self,CHARAC_UUID_4, restart=True, charac_name = "RestartCairAppCharacteristic", service_name = "cair-app"))
+        self.add_characteristic(SensorCharacteristic(bus, 4, self, CHARAC_UUID_4, restart=True, charac_name = "RestartCairAppCharacteristic", service_name = "cair-app"))
         
         print("Adding RestartDeviceCharacteristic to the service")
-        self.add_characteristic(SensorCharacteristic(bus, 4, self,CHARAC_UUID_5, restart=True, charac_name = "RestartDeviceCharacteristic", service_name = None))
+        self.add_characteristic(SensorCharacteristic(bus, 5, self, CHARAC_UUID_5, restart=True, charac_name = "RestartDeviceCharacteristic", service_name = None))
         
 class SensorCharacteristic(bluetooth_gatt.Characteristic):
     def __init__(self, bus, index, service, CHARAC_UUID, restart, charac_name, service_name):
@@ -185,17 +191,31 @@ class SensorCharacteristic(bluetooth_gatt.Characteristic):
         print('ReadValue in '+ self.charac_name + ' called')
         print(self.restart_state)
         if not self.restart_state:
-            with open(DEVICE_CONFIG_PATH, 'r') as file:
-                device_config = json.load(file)
+            if self.charac_name == "ChangeConfigurationCharacteristic":
+                with open(DEVICE_CONFIG_PATH, 'r') as file:
+                    device_config = json.load(file)
 
-            print('Returning '+ str(device_config))
-            value_bytes = str(device_config).encode('utf-8')
+                print('Returning '+ str(device_config))
+                value_bytes = str(device_config).encode('utf-8')
 
-            value = []
-            for byteval in value_bytes:
-                value.append(dbus.Byte(byteval))
-         
-            return value
+                value = []
+                for byteval in value_bytes:
+                    value.append(dbus.Byte(byteval))
+             
+                return value
+            else:
+                with open(DEVICE_MAPPING_PATH, 'r') as file:
+                    device_config = json.load(file)
+
+                print('Returning '+ str(device_config))
+                value_bytes = str(device_config).encode('utf-8')
+
+                value = []
+                for byteval in value_bytes:
+                    value.append(dbus.Byte(byteval))
+             
+                return value
+                
             
         elif self.restart_state and  self.charac_name == 'RestartDeviceCharacteristic':
             return "  " + self.charac_name 
@@ -211,20 +231,36 @@ class SensorCharacteristic(bluetooth_gatt.Characteristic):
     def WriteValue(self, value, options):
         print('WriteValue in '+ self.charac_name + ' called')
         if not self.restart_state:
-            #print(value)
-            byte_list = [int(byte) for byte in value]
-            
-            decoded_string = ''.join([chr(byte) for byte in byte_list]) # Convert the list of bytes to a string
-            self.buffer += decoded_string
-            # Check if the buffer contains a complete JSON message
-            # Assuming the JSON messages are enclosed in curly braces
-            while '}}' in self.buffer:
-                end_index = self.buffer.index('}}') + 2 # Find the end of the first complete JSON message
-                complete_message = self.buffer[:end_index] # Extract the complete message
-                print("Received complete message:", complete_message) # Process the complete message
-                self.buffer = self.buffer[end_index:] # Remove the processed message from the buffer
+            if self.charac_name == "ChangeConfigurationCharacteristic":
+                #print(value)
+                byte_list = [int(byte) for byte in value]
                 
-            my_write_callback(complete_message)
+                decoded_string = ''.join([chr(byte) for byte in byte_list]) # Convert the list of bytes to a string
+                self.buffer += decoded_string
+                # Check if the buffer contains a complete JSON message
+                # Assuming the JSON messages are enclosed in curly braces
+                while '}}' in self.buffer:
+                    end_index = self.buffer.index('}}') + 2 # Find the end of the first complete JSON message
+                    complete_message = self.buffer[:end_index] # Extract the complete message
+                    print("Received complete message:", complete_message) # Process the complete message
+                    self.buffer = self.buffer[end_index:] # Remove the processed message from the buffer
+                    
+                my_write_callback(complete_message,DEVICE_CONFIG_PATH)
+            else:
+                #print(value)
+                byte_list = [int(byte) for byte in value]
+                
+                decoded_string = ''.join([chr(byte) for byte in byte_list]) # Convert the list of bytes to a string
+                self.buffer += decoded_string
+                # Check if the buffer contains a complete JSON message
+                # Assuming the JSON messages are enclosed in curly braces
+                while '}' in self.buffer:
+                    end_index = self.buffer.index('}') + 1 # Find the end of the first complete JSON message
+                    complete_message = self.buffer[:end_index] # Extract the complete message
+                    print("Received complete message:", complete_message) # Process the complete message
+                    self.buffer = self.buffer[end_index:] # Remove the processed message from the buffer
+                    
+                my_write_callback(complete_message,DEVICE_MAPPING_PATH)
             
         elif self.restart_state == True and  self.charac_name == 'RestartDeviceCharacteristic':
             byte_list = [int(byte) for byte in value]
@@ -273,12 +309,12 @@ def get_service_status(service_name):
         print(e)
         return "unknown"
 
-def my_write_callback(msg):
-    print("Updating device_config file..")
+def my_write_callback(msg,path):
+    print("Updating " + path + " file..")
     try:
-        with open(DEVICE_CONFIG_PATH, 'w') as file:
+        with open(path, 'w') as file:
             json.dump(json.loads(msg), file, indent=4)
-        print("device_config file has been updated.")
+        print(path + " file has been updated.")
     except Exception as e:    
         print(e)
     
