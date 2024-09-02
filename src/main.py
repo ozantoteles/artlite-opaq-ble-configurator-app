@@ -20,6 +20,7 @@ import subprocess
 #sys.path.insert(0, '.')
 DEVICE_CONFIG_PATH = "/usr/local/artlite-opaq-app/config/device_config.json"
 DEVICE_MAPPING_PATH = "/usr/local/artlite-opaq-app/config/device_mapping.json"
+DEVICE_SECRETS_PATH = "/usr/local/artlite-opaq-app/config/secrets.json"
 
 command = """
 cd /usr/local/bin/ 
@@ -52,6 +53,8 @@ CHARAC_UUID_2 = '5f5f4b18-fe65-4916-b6c7-b1574ee591cb'
 CHARAC_UUID_3 = '4482c5c3-9932-4aa3-b74a-67e1720abd91'
 CHARAC_UUID_4 = 'be02f706-70b5-4520-9ab4-424ae3c97532'
 CHARAC_UUID_5 = '3204a6f1-2232-4dba-a948-7ad4688c168a'
+CHARAC_UUID_6 = '8c9b1355-b316-4efe-a105-2f753bab7649'
+CHARAC_UUID_7 = 'b8bfcc85-a6be-4857-abfb-8cd65d9f5b9d'
 
 # much of this code was copied or inspired by test\example-advertisement in the BlueZ source
 class Advertisement(dbus.service.Object):
@@ -157,112 +160,144 @@ class SensorService(bluetooth_gatt.Service):
         print("Initialising SensorService object")
         bluetooth_gatt.Service.__init__(self, bus, path_base, index, SERVICE_UUID, True)
         print("Adding ChangeConfigurationCharacteristic to the service")
-        self.add_characteristic(SensorCharacteristic(bus, 0, self, CHARAC_UUID_0, restart=False, charac_name = "ChangeConfigurationCharacteristic", service_name = None))
+        self.add_characteristic(SensorCharacteristic(bus, 0, self, CHARAC_UUID_0, functions = ["read","write"], charac_name = "ChangeConfigurationCharacteristic", service_name = None))
 
         print("Adding ChangeDeviceMappingCharacteristic to the service")
-        self.add_characteristic(SensorCharacteristic(bus, 1, self, CHARAC_UUID_1, restart=False, charac_name = "ChangeDeviceMappingCharacteristic", service_name = None))
+        self.add_characteristic(SensorCharacteristic(bus, 1, self, CHARAC_UUID_1, functions = ["read","write"], charac_name = "ChangeDeviceMappingCharacteristic", service_name = None))
         
         print("Adding RestartOpaqAppCharacteristic to the service")
-        self.add_characteristic(SensorCharacteristic(bus, 2, self, CHARAC_UUID_2, restart=True, charac_name = "RestartOpaqAppCharacteristic", service_name = "artlite-opaq-app"))
+        self.add_characteristic(SensorCharacteristic(bus, 2, self, CHARAC_UUID_2, functions = ["read","write"], charac_name = "RestartOpaqAppCharacteristic", service_name = "artlite-opaq-app"))
         
         print("Adding RestartBleOpsCharacteristic to the service")
-        self.add_characteristic(SensorCharacteristic(bus, 3, self, CHARAC_UUID_3, restart=True, charac_name = "RestartBleOpsCharacteristic", service_name = "artlite-opaq-ble-configurator-app"))
+        self.add_characteristic(SensorCharacteristic(bus, 3, self, CHARAC_UUID_3, functions = ["read","write"], charac_name = "RestartBleOpsCharacteristic", service_name = "artlite-opaq-ble-configurator-app"))
         
         print("Adding RestartCairAppCharacteristic to the service")
-        self.add_characteristic(SensorCharacteristic(bus, 4, self, CHARAC_UUID_4, restart=True, charac_name = "RestartCairAppCharacteristic", service_name = "cair-app"))
+        self.add_characteristic(SensorCharacteristic(bus, 4, self, CHARAC_UUID_4, functions = ["read","write"], charac_name = "RestartCairAppCharacteristic", service_name = "cair-app"))
         
         print("Adding RestartDeviceCharacteristic to the service")
-        self.add_characteristic(SensorCharacteristic(bus, 5, self, CHARAC_UUID_5, restart=True, charac_name = "RestartDeviceCharacteristic", service_name = None))
+        self.add_characteristic(SensorCharacteristic(bus, 5, self, CHARAC_UUID_5, functions = ["read","write"], charac_name = "RestartDeviceCharacteristic", service_name = None))
+        
+        print("Adding GetIPAddressCharacteristic to the service")
+        self.add_characteristic(SensorCharacteristic(bus, 6, self, CHARAC_UUID_6, functions = ["read"], charac_name = "GetIPAddressCharacteristic", service_name = None))
+        
+        print("Adding ChangeSecretsCharacteristic to the service")
+        self.add_characteristic(SensorCharacteristic(bus, 7, self, CHARAC_UUID_7, functions = ["write"], charac_name = "ChangeSecretsCharacteristic", service_name = None))
         
 class SensorCharacteristic(bluetooth_gatt.Characteristic):
-    def __init__(self, bus, index, service, CHARAC_UUID, restart, charac_name, service_name):
+    def __init__(self, bus, index, service, CHARAC_UUID, functions, charac_name, service_name):
         bluetooth_gatt.Characteristic.__init__(
                 self, bus, index,
                 CHARAC_UUID,
-                ['read','write'],
+                functions,
                 service)
         self.sensor_value = 50
         self.buffer = ''
-        self.restart_state = restart
         self.charac_name = charac_name
         self.service_name = service_name
-    
+        
     def ReadValue(self, options):
         print('ReadValue in '+ self.charac_name + ' called')
-        print(self.restart_state)
-        if not self.restart_state:
-            if self.charac_name == "ChangeConfigurationCharacteristic":
-                with open(DEVICE_CONFIG_PATH, 'r') as file:
-                    device_config = json.load(file)
+        
+        if self.charac_name == "ChangeConfigurationCharacteristic":
+            with open(DEVICE_CONFIG_PATH, 'r') as file:
+                device_config = json.load(file)
 
-                print('Returning '+ str(device_config))
-                value_bytes = str(device_config).encode('utf-8')
+            print('Returning '+ str(device_config))
+            value_bytes = str(device_config).encode('utf-8')
 
-                value = []
-                for byteval in value_bytes:
-                    value.append(dbus.Byte(byteval))
-             
-                return value
-            else:
-                with open(DEVICE_MAPPING_PATH, 'r') as file:
-                    device_config = json.load(file)
-
-                print('Returning '+ str(device_config))
-                value_bytes = str(device_config).encode('utf-8')
-
-                value = []
-                for byteval in value_bytes:
-                    value.append(dbus.Byte(byteval))
-             
-                return value
-                
+            value = []
+            for byteval in value_bytes:
+                value.append(dbus.Byte(byteval))
+         
+            return value
             
-        elif self.restart_state and  self.charac_name == 'RestartDeviceCharacteristic':
+        elif self.charac_name == "ChangeDeviceMappingCharacteristic":
+            with open(DEVICE_MAPPING_PATH, 'r') as file:
+                device_config = json.load(file)
+
+            print('Returning '+ str(device_config))
+            value_bytes = str(device_config).encode('utf-8')
+
+            value = []
+            for byteval in value_bytes:
+                value.append(dbus.Byte(byteval))
+         
+            return value
+            
+        elif  self.charac_name == 'RestartDeviceCharacteristic':
             return "  " + self.charac_name 
             
-        else:
+        elif self.charac_name == 'RestartOpaqAppCharacteristic' or self.charac_name == 'RestartBleOpsCharacteristic' or self.charac_name == 'RestartCairAppCharacteristic':
             try:
                 service_status = get_service_status(self.service_name).encode('utf-8')
                 print("Status of the service " + self.service_name + " is: " + service_status)
                 return "  " + self.service_name + " service - " + service_status
             except Exception as e:
                 print(e)
+                
+        elif self.charac_name == 'GetIPAddressCharacteristic':
+            interface = 'wlan0'  # Replace with your interface name
+            ip_address = get_ip_address(interface)
+            
+            if ip_address:
+                print("IP Address of " + interface + ": " + ip_address)
+                return ip_address.encode('utf-8')
+            else:
+                print("Could not find IP address for interface " + interface)
+                return "Not Determined!"
+       
+    
             
     def WriteValue(self, value, options):
         print('WriteValue in '+ self.charac_name + ' called')
-        if not self.restart_state:
-            if self.charac_name == "ChangeConfigurationCharacteristic":
-                #print(value)
-                byte_list = [int(byte) for byte in value]
-                
-                decoded_string = ''.join([chr(byte) for byte in byte_list]) # Convert the list of bytes to a string
-                self.buffer += decoded_string
-                # Check if the buffer contains a complete JSON message
-                # Assuming the JSON messages are enclosed in curly braces
-                while '}}' in self.buffer:
-                    end_index = self.buffer.index('}}') + 2 # Find the end of the first complete JSON message
-                    complete_message = self.buffer[:end_index] # Extract the complete message
-                    print("Received complete message:", complete_message) # Process the complete message
-                    self.buffer = self.buffer[end_index:] # Remove the processed message from the buffer
-                    
-                my_write_callback(complete_message,DEVICE_CONFIG_PATH)
-            else:
-                #print(value)
-                byte_list = [int(byte) for byte in value]
-                
-                decoded_string = ''.join([chr(byte) for byte in byte_list]) # Convert the list of bytes to a string
-                self.buffer += decoded_string
-                # Check if the buffer contains a complete JSON message
-                # Assuming the JSON messages are enclosed in curly braces
-                while '}' in self.buffer:
-                    end_index = self.buffer.index('}') + 1 # Find the end of the first complete JSON message
-                    complete_message = self.buffer[:end_index] # Extract the complete message
-                    print("Received complete message:", complete_message) # Process the complete message
-                    self.buffer = self.buffer[end_index:] # Remove the processed message from the buffer
-                    
-                my_write_callback(complete_message,DEVICE_MAPPING_PATH)
+        if self.charac_name == "ChangeConfigurationCharacteristic":
+            #print(value)
+            byte_list = [int(byte) for byte in value]
             
-        elif self.restart_state == True and  self.charac_name == 'RestartDeviceCharacteristic':
+            decoded_string = ''.join([chr(byte) for byte in byte_list]) # Convert the list of bytes to a string
+            self.buffer += decoded_string
+            # Check if the buffer contains a complete JSON message
+            # Assuming the JSON messages are enclosed in curly braces
+            while '}}' in self.buffer:
+                end_index = self.buffer.index('}}') + 2 # Find the end of the first complete JSON message
+                complete_message = self.buffer[:end_index] # Extract the complete message
+                try:
+                    json_msg = json.loads(complete_message)  # Attempt to parse the JSON message
+                    print("Received complete message:", complete_message)  # Process the complete message
+                    my_write_callback(complete_message, DEVICE_CONFIG_PATH)
+                    # Remove the processed or problematic message from the buffer
+                    self.buffer = self.buffer[end_index:]
+                except ValueError as e:
+                    # Handle malformed JSON
+                    print("Warning: Incomplete or malformed JSON message received. Error: ",e)
+                    # Or attempt to skip to the next possible message
+                    self.buffer = self.buffer[end_index:]
+            
+        elif self.charac_name == "ChangeDeviceMappingCharacteristic":
+            #print(value)
+            byte_list = [int(byte) for byte in value]
+            
+            decoded_string = ''.join([chr(byte) for byte in byte_list]) # Convert the list of bytes to a string
+            self.buffer += decoded_string
+            # Check if the buffer contains a complete JSON message
+            # Assuming the JSON messages are enclosed in curly braces
+            while '}' in self.buffer:
+                end_index = self.buffer.index('}') + 1  # Find the end of the first complete JSON message
+                complete_message = self.buffer[:end_index]  # Extract the complete message
+                
+                try:
+                    json_msg = json.loads(complete_message)  # Attempt to parse the JSON message
+                    print("Received complete message:", complete_message)  # Process the complete message
+                    my_write_callback(complete_message, DEVICE_MAPPING_PATH)
+                    # Remove the processed or problematic message from the buffer
+                    self.buffer = self.buffer[end_index:]
+                except ValueError as e:
+                    # Handle malformed JSON
+                    print("Warning: Incomplete or malformed JSON message received. Error: ",e)
+                    # Or attempt to skip to the next possible message
+                    self.buffer = self.buffer[end_index:]
+            
+        elif  self.charac_name == 'RestartDeviceCharacteristic':
             byte_list = [int(byte) for byte in value]
             result = int(chr(byte_list[0]))
             print(result)
@@ -271,7 +306,7 @@ class SensorCharacteristic(bluetooth_gatt.Characteristic):
             else:
                 print('command Fail')
             
-        else:
+        elif self.charac_name == 'RestartOpaqAppCharacteristic' or self.charac_name == 'RestartBleOpsCharacteristic' or self.charac_name == 'RestartCairAppCharacteristic':
             byte_list = [int(byte) for byte in value]
             result = int(chr(byte_list[0]))
             print(result)
@@ -280,8 +315,50 @@ class SensorCharacteristic(bluetooth_gatt.Characteristic):
                 print('restart Successfull')
             else:
                 print('command Fail')
-
-
+        
+        elif self.charac_name == 'ChangeSecretsCharacteristic':
+            byte_list = [int(byte) for byte in value]
+            
+            decoded_string = ''.join([chr(byte) for byte in byte_list]) # Convert the list of bytes to a string
+            self.buffer += decoded_string
+            # Check if the buffer contains a complete JSON message
+            # Assuming the JSON messages are enclosed in curly braces
+            while '}' in self.buffer:
+                end_index = self.buffer.index('}') + 1  # Find the end of the first complete JSON message
+                complete_message = self.buffer[:end_index]  # Extract the complete message
+                
+                try:
+                    json_msg = json.loads(complete_message)  # Attempt to parse the JSON message
+                    
+                    # Check if the required keys are present
+                    if all(key in json_msg for key in ["DEVICE_ID", "SECRET_KEY"]):
+                        print("Received complete message:", complete_message)  # Process the complete message
+                        my_write_callback(complete_message, DEVICE_SECRETS_PATH)
+                    else:
+                        print("Warning: JSON message is missing required keys.")
+                    
+                    # Remove the processed or problematic message from the buffer
+                    self.buffer = self.buffer[end_index:]
+                
+                except ValueError as e:
+                    # Handle malformed JSON
+                    print("Warning: Incomplete or malformed JSON message received. Error: ",e)
+                    # Or attempt to skip to the next possible message
+                    self.buffer = self.buffer[end_index:]
+        
+                
+def get_ip_address(interface_name):
+    try:
+        # Execute the shell command and capture the output
+        ip_address = subprocess.check_output(
+            "ifconfig " + interface_name + " | grep 'inet addr:' | awk '{{print $2}}' | cut -d':' -f2", 
+            shell=True
+        ).decode().strip()
+        
+        return ip_address
+    except subprocess.CalledProcessError:
+        return None
+    
 def reboot_device():
     try:
         print("Rebooting device..")
