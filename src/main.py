@@ -178,7 +178,7 @@ class SensorService(bluetooth_gatt.Service):
         self.add_characteristic(SensorCharacteristic(bus, 5, self, CHARAC_UUID_5, functions = ["read","write"], charac_name = "RestartDeviceCharacteristic", service_name = None))
         
         print("Adding GetIPAddressCharacteristic to the service")
-        self.add_characteristic(SensorCharacteristic(bus, 6, self, CHARAC_UUID_6, functions = ["read"], charac_name = "GetIPAddressCharacteristic", service_name = None))
+        self.add_characteristic(SensorCharacteristic(bus, 6, self, CHARAC_UUID_6, functions = ["read","write"], charac_name = "GetIPAddressCharacteristic", service_name = None))
         
         print("Adding ChangeSecretsCharacteristic to the service")
         self.add_characteristic(SensorCharacteristic(bus, 7, self, CHARAC_UUID_7, functions = ["write"], charac_name = "ChangeSecretsCharacteristic", service_name = None))
@@ -345,8 +345,40 @@ class SensorCharacteristic(bluetooth_gatt.Characteristic):
                     print("Warning: Incomplete or malformed JSON message received. Error: ",e)
                     # Or attempt to skip to the next possible message
                     self.buffer = self.buffer[end_index:]
-        
+                    
+        elif self.charac_name == 'GetIPAddressCharacteristic':
+            
+            #self.buffer = ""
+            
+            byte_list = [int(byte) for byte in value]
+            print(byte_list)
+            decoded_string = ''.join([chr(byte) for byte in byte_list]) # Convert the list of bytes to a string
+            self.buffer += decoded_string
+            print("self.buffer: ",self.buffer)
+            # Check if the buffer contains a complete JSON message
+            # Assuming the JSON messages are enclosed in curly braces
+            while '~' in self.buffer:
+                end_index = self.buffer.index('~') + 1  # Find the end of the first complete JSON message
+                complete_message = self.buffer[:end_index]  # Extract the complete message
                 
+                try:
+                    complete_message = complete_message.split('~', 1)[0]
+                    params = complete_message.split(' ', 1)
+                    print(params)
+                    if len(params) == 2:
+                        ssid, psw = params
+                        print("ssid: ",ssid)
+                        print("psw: ",psw)
+                        
+                        change_wifi(ssid,psw)
+                        
+                    self.buffer = self.buffer[end_index:]
+                except ValueError as e:
+                    # Handle malformed JSON
+                    print("Warning: Incomplete or malformed JSON message received. Error: ",e)
+                    # Or attempt to skip to the next possible message
+                    self.buffer = self.buffer[end_index:]
+                    
 def get_ip_address(interface_name):
     try:
         # Execute the shell command and capture the output
@@ -358,6 +390,18 @@ def get_ip_address(interface_name):
         return ip_address
     except subprocess.CalledProcessError:
         return None
+        
+def change_wifi(ssid,psw):    
+    # Run the bash script with arguments
+    print("*********************")
+    try:
+        print("ssid: ",ssid)
+        print("psw: ",psw)
+        subprocess.Popen(["change_wifi.sh", ssid, psw])
+        print("Wifi configuration has been updated!")
+    except subprocess.CalledProcessError as e:
+        print("Script failed with error: ", e)
+    
     
 def reboot_device():
     try:
