@@ -21,6 +21,7 @@ import subprocess
 DEVICE_CONFIG_PATH = "/usr/local/artlite-opaq-app/config/device_config.json"
 DEVICE_MAPPING_PATH = "/usr/local/artlite-opaq-app/config/device_mapping.json"
 DEVICE_SECRETS_PATH = "/usr/local/artlite-opaq-app/config/secrets.json"
+CO2_CALIB_LOG_PATH = "/usr/local/artlite-opaq-app/data/co2_calibration_log.txt"
 
 command = """
 cd /usr/local/bin/ 
@@ -55,6 +56,7 @@ CHARAC_UUID_4 = 'be02f706-70b5-4520-9ab4-424ae3c97532'
 CHARAC_UUID_5 = '3204a6f1-2232-4dba-a948-7ad4688c168a'
 CHARAC_UUID_6 = '8c9b1355-b316-4efe-a105-2f753bab7649'
 CHARAC_UUID_7 = 'b8bfcc85-a6be-4857-abfb-8cd65d9f5b9d'
+CHARAC_UUID_8 = '084fa1b2-9e8c-48da-8401-e453d4e619ea'
 
 # much of this code was copied or inspired by test\example-advertisement in the BlueZ source
 class Advertisement(dbus.service.Object):
@@ -183,6 +185,9 @@ class SensorService(bluetooth_gatt.Service):
         print("Adding ChangeSecretsCharacteristic to the service")
         self.add_characteristic(SensorCharacteristic(bus, 7, self, CHARAC_UUID_7, functions = ["write"], charac_name = "ChangeSecretsCharacteristic", service_name = None))
         
+        print("Adding CalibrateCO2Characteristic to the service")
+        self.add_characteristic(SensorCharacteristic(bus, 8, self, CHARAC_UUID_8, functions = ["read","write"], charac_name = "CalibrateCO2Characteristic", service_name = None))
+
 class SensorCharacteristic(bluetooth_gatt.Characteristic):
     def __init__(self, bus, index, service, CHARAC_UUID, functions, charac_name, service_name):
         bluetooth_gatt.Characteristic.__init__(
@@ -246,6 +251,16 @@ class SensorCharacteristic(bluetooth_gatt.Characteristic):
                 print("Could not find IP address for interface " + interface)
                 return "Not Determined!"
        
+        elif self.charac_name == 'CalibrateCO2Characteristic':
+            try:
+                with open(CO2_CALIB_LOG_PATH, 'r') as file:
+                    lines = file.readlines()  # Read all lines
+                    if lines:
+                        return lines[-1].strip()  # Return the last line (remove trailing newlines or spaces)
+                    else:
+                        return "Calibration file is empty!"
+            except:
+                return "No calibration has been done!"
     
             
     def WriteValue(self, value, options):
@@ -378,6 +393,29 @@ class SensorCharacteristic(bluetooth_gatt.Characteristic):
                     print("Warning: Incomplete or malformed JSON message received. Error: ",e)
                     # Or attempt to skip to the next possible message
                     self.buffer = self.buffer[end_index:]
+        
+        elif self.charac_name == 'CalibrateCO2Characteristic':
+            try:             
+                byte_list = [int(byte) for byte in value]
+                target_ppm = ''.join([chr(byte) for byte in byte_list]) # Convert the list of bytes to a string
+                print(target_ppm)
+                driver_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../artlite-opaq-app/src/drivers'))
+
+                command = [
+                    "python3.10",  os.path.join(driver_path, "driver_co2.py"),   # Call Python 3.10 and driver_co2.py
+                    "--run_mode", "calib",             # Set run_mode to "calib"
+                    "--target_ppm", target_ppm,   # Pass target_ppm value                
+                ]
+                try:
+                    # Run the subprocess and capture the output 
+                    result = subprocess.check_output(command, stderr=subprocess.STDOUT)
+                    print("Subprocess output:", result.decode('utf-8'))
+                except subprocess.CalledProcessError as e:
+                    print("Error during subprocess execution:", e.output.decode('utf-8'))
+            except Exception as e:
+                print("Error! ", e)
+        
+            sys.path = original_sys_path
                     
 def get_ip_address(interface_name):
     try:
