@@ -204,30 +204,36 @@ class SensorCharacteristic(bluetooth_gatt.Characteristic):
         print('ReadValue in '+ self.charac_name + ' called')
         
         if self.charac_name == "ChangeConfigurationCharacteristic":
-            with open(DEVICE_CONFIG_PATH, 'r') as file:
-                device_config = json.load(file)
+            try:
+                with open(DEVICE_CONFIG_PATH, 'r') as file:
+                    device_config = json.load(file)
 
-            print('Returning '+ str(device_config))
-            value_bytes = str(device_config).encode('utf-8')
+                print('Returning '+ str(device_config))
+                value_bytes = str(device_config).encode('utf-8')
 
-            value = []
-            for byteval in value_bytes:
-                value.append(dbus.Byte(byteval))
-         
-            return value
+                value = []
+                for byteval in value_bytes:
+                    value.append(dbus.Byte(byteval))
+             
+                return value
+            except:
+                return "device_config.json not found, this might be sender"
             
         elif self.charac_name == "ChangeDeviceMappingCharacteristic":
-            with open(DEVICE_MAPPING_PATH, 'r') as file:
-                device_config = json.load(file)
+            try:
+                with open(DEVICE_MAPPING_PATH, 'r') as file:
+                    device_config = json.load(file)
 
-            print('Returning '+ str(device_config))
-            value_bytes = str(device_config).encode('utf-8')
+                print('Returning '+ str(device_config))
+                value_bytes = str(device_config).encode('utf-8')
 
-            value = []
-            for byteval in value_bytes:
-                value.append(dbus.Byte(byteval))
-         
-            return value
+                value = []
+                for byteval in value_bytes:
+                    value.append(dbus.Byte(byteval))
+             
+                return value
+            except:
+                return "device_mapping.json not found, this might be sender"
             
         elif  self.charac_name == 'RestartDeviceCharacteristic':
             return "  " + self.charac_name 
@@ -244,13 +250,23 @@ class SensorCharacteristic(bluetooth_gatt.Characteristic):
             interface = 'wlan0'  # Replace with your interface name
             ip_address = get_ip_address(interface)
             
+            ssid_list = get_ssid_from_wpa_supplicant()
+            if ssid_list:
+                print("Known SSIDs: ",'-'.join(ssid_list))
+                ssid_return = ','.join(ssid_list)
+            else:
+                print("No SSIDs found in wpa_supplicant.conf")
+                ssid_return = "No SSIDs found in wpa_supplicant.conf"
+            
             if ip_address:
                 print("IP Address of " + interface + ": " + ip_address)
-                return ip_address.encode('utf-8')
+                ip_address_return = ip_address.encode('utf-8')
             else:
                 print("Could not find IP address for interface " + interface)
-                return "Not Determined!"
-       
+                ip_address_return = "IP addres not determined"
+            
+            return ip_address_return + " - " + ssid_return
+                
         elif self.charac_name == 'CalibrateCO2Characteristic':
             try:
                 with open(CO2_CALIB_LOG_PATH, 'r') as file:
@@ -428,7 +444,23 @@ def get_ip_address(interface_name):
         return ip_address
     except subprocess.CalledProcessError:
         return None
-        
+
+def get_ssid_from_wpa_supplicant():
+    wpa_supplicant_conf = '/etc/wpa_supplicant.conf'
+    ssid_list = []
+    try:
+        with open(wpa_supplicant_conf, 'r') as f:
+            lines = f.readlines()
+            for line in lines:
+                if "ssid" in line:
+                    # Extract the SSID from the line
+                    ssid = line.strip().split('=')[1].strip('"')
+                    ssid_list.append(ssid)
+        return ssid_list
+    except Exception as e:
+        print("Error reading wpa_supplicant.conf: ",e)
+        return None
+
 def change_wifi(ssid,psw):    
     # Run the bash script with arguments
     print("*********************")
