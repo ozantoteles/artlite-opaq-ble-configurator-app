@@ -467,7 +467,7 @@ def change_wifi(ssid,psw):
     try:
         print("ssid: ",ssid)
         print("psw: ",psw)
-        subprocess.Popen(["change_wifi.sh", ssid, psw])
+        subprocess.Popen(["/usr/local/artlite-opaq-ble-configurator-app/scripts/change_wifi2.sh", ssid, psw])
         print("Wifi configuration has been updated!")
     except subprocess.CalledProcessError as e:
         print("Script failed with error: ", e)
